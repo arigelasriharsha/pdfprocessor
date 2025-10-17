@@ -1,0 +1,4 @@
+ in this paper , we present a method for generating an artificial neural network ( a nnn ) capable of performing any task performed by a human on an at least equal level . 
+ the method is based on a combination of search and mathematical optimization , formal logic , artificial neural networks , and methods based on statistics , operations research , and economics. 
+ we show that the method can be applied to a variety of tasks performed by humans , and we demonstrate that it can be used to generate an artificial nnn capable of completing a task on an equal level to a human .    * 
+ key words : * general intelligence ; search optimization ; formal logic ; statistics ; operations research ; economics . 

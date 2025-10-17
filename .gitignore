@@ -1,0 +1,13 @@
+# Python virtual environment
+venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Huggingface / model files
+models/
+
+# IDE or system files
+*.DS_Store
+*.vscode/

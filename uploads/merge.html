@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Processing Application</title>
+    <style>
+        /* General Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Playfair Display', serif;
+        }
+
+        body {
+            background: radial-gradient(circle at top, #1d2671, #c33764);
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 30px;
+            color: #ffffff;
+            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            font-weight: 800;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+            border-radius: 20px;
+            padding: 30px 20px;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+            transition: transform 0.4s, box-shadow 0.4s;
+            cursor: pointer;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+        }
+
+        .card img {
+            width: 150px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.2));
+        }
+
+        .card h3 {
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+            color: #ffffff;
+        }
+
+        .card p {
+            font-size: 1rem;
+            color: #ffffff;
+            opacity: 0.85;
+            margin-bottom: 15px;
+        }
+
+        .card label {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: #ffffff;
+            border-radius: 30px;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: background-color 0.3s;
+            cursor: pointer;
+        }
+
+        .card label:hover {
+            background-color: #2d86c6;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        footer {
+            margin-top: 40px;
+            font-size: 1rem;
+            color: #ffffff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (max-width: 600px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .flash-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 0, 0, 0.8);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-size: 1.2rem;
+            display: none;
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: #fff;
+            font-size: 1.5rem;
+        }
+
+        .spinner {
+            border: 8px solid rgba(255, 255, 255, 0.2);
+            border-top: 8px solid #fff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="flashMessage" class="flash-message"></div>
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Processing your file, please wait...</p>
+    </div>
+
+    <h1><font color="white"><font face="italic">PDF SmartTools</font></h1>
+    <div class="app-container">
+        <!-- Text Extraction -->
+        <div class="card">
+            <img src="https://static.vecteezy.com/system/resources/previews/022/692/016/non_2x/3d-file-format-data-icon-illustration-png.png" alt="Text Icon" height="150" width="1000">
+            <h3>Extract Text</h3>
+            <p>Upload a PDF to extract text content.</p>
+            <label>
+                Select PDF
+                <input type="file" accept=".pdf" onchange="handleFileUpload(event, 'text')">
+            </label>
+        </div>
+
+        <!-- Table Extraction -->
+        <div class="card">
+            <img src="https://icons.iconarchive.com/icons/double-j-design/ravenna-3d/256/Database-Table-icon.png" alt="Table Icon" width="100" height="150">
+            <h3>Extract Tables</h3>
+            <p>Upload a PDF to extract tables.</p>
+            <label>
+                Select PDF
+                <input type="file" accept=".pdf" onchange="handleFileUpload(event, 'tables')">
+            </label>
+        </div>
+
+        <!-- Summarize Text -->
+        <div class="card">
+            <img src="https://png.pngtree.com/png-vector/20240912/ourmid/pngtree-3d-page-icon-on-transparent-background-png-image_13820612.png" alt="Summary Icon" height="150">
+            <h3>Summarize Text</h3>
+            <p>Upload a PDF to generate a summary.</p>
+            <label>
+                Select PDF
+                <input type="file" accept=".pdf" onchange="handleFileUpload(event, 'summarize')">
+            </label>
+        </div>
+
+        <!-- Extract Images -->
+        <div class="card">
+            <img src="https://cdn3d.iconscout.com/3d/premium/thumb/screenshot-3d-illustration-download-in-png-blend-fbx-gltf-file-formats--snapshot-screen-capture-print-miscellaneous-pack-illustrations-4379776.png" alt="Image Icon">
+            <h3>Extract Images</h3>
+            <p>Upload a PDF to extract images.</p>
+            <label>
+                Select PDF
+                <input type="file" accept=".pdf" onchange="handleFileUpload(event, 'images')">
+            </label>
+        </div>
+
+        <!-- Extract Key Points -->
+        <div class="card">
+            <img src="https://static.vecteezy.com/system/resources/thumbnails/009/315/274/small_2x/white-clipboard-task-management-todo-check-list-efficient-work-on-project-plan-fast-progress-level-up-concept-assignment-and-exam-productivity-solution-icon-3d-clipboard-render-free-png.png" alt="Checklist Icon" height="150">
+            <h3>Extract Key Points</h3>
+            <p>Upload a PDF to extract key points.</p>
+            <label>
+                Select PDF
+                <input type="file" accept=".pdf" onchange="handleFileUpload(event, 'points')">
+            </label>
+        </div>
+
+        <!-- Question and Answers -->
+        <div class="card">
+            <img src="https://cdn3d.iconscout.com/3d/premium/thumb/question-answer-3d-icon-download-in-png-blend-fbx-gltf-file-formats--faq-help-questions-pack-services-icons-5251291.png?f=webp" alt="Checklist Icon" height="150">
+            <h3>Extract Question and Answers</h3>
+            <p>Upload a PDF to extract Q&A.</p>
+            <label>
+                Select PDF
+                <input type="file" accept=".pdf" onchange="handleFileUpload(event, 'qa')">
+            </label>
+        </div>
+
+        <!-- PDF to PPT -->
+        <div class="card">
+            <img src="https://cdn3d.iconscout.com/3d/free/thumb/free-powerpoint-3d-logo-download-in-png-blend-fbx-gltf-file-formats--software-social-media-pack-logos-4642748.png?f=webp" alt="Checklist Icon" height="150">
+            <h3>PDF TO PPT</h3>
+            <p>Upload a PDF to extract PPT.</p>
+            <label>
+                Select PDF
+                <input type="file" accept=".pdf" onchange="handleFileUpload(event, 'pdppt')">
+            </label>
+        </div>
+         <!-- Merge PDFs -->
+         <div class="card">
+            <img src="https://cdn-icons-png.flaticon.com/512/266/266204.png" alt="Merge PDFs Icon" height="150">
+            <h3>Merge PDFs</h3>
+            <p>Upload multiple PDFs to merge into one.</p>
+            <label>
+                Select PDFs
+                <input type="file" accept=".pdf" multiple onchange="handleFileUpload(event, 'merge')">
+
+            </label>
+        </div>
+    </div>
+    </div>
+
+    <footer>
+        <p>© 2024 PDF Processing Application. All rights reserved.</p>
+    </footer>
+
+    <script>
+        const flashMessageElement = document.getElementById('flashMessage');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        
+        // Function to display flash messages with different types
+        function displayFlashMessage(message, type = 'error') {
+            flashMessageElement.innerText = message;
+            if (type === 'info') {
+                flashMessageElement.style.backgroundColor = 'rgba(0, 128, 0, 0.8)';
+            } else if (type === 'error') {
+                flashMessageElement.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+            } else {
+                flashMessageElement.style.backgroundColor = 'rgba(255, 255, 0, 0.8)'; // Yellow for warning or info
+            }
+            flashMessageElement.style.display = 'block';
+            setTimeout(() => {
+                flashMessageElement.style.display = 'none';
+            }, 3000);
+        }
+        
+        // Show loading spinner overlay
+        function toggleLoading(show) {
+            loadingOverlay.style.display = show ? 'flex' : 'none';
+        }
+        
+        async function handleFileUpload(event, feature) {
+            const fileInput = event.target;
+            const files = fileInput.files;
+            const formData = new FormData();
+        
+            let apiRoute = '';
+            let fileExtension = '';
+            const errorMessages = {
+                text: 'No text found in the PDF.',
+                tables: 'No tables found in the PDF.',
+                images: 'No images found in the PDF.',
+                summarize: 'No summary generated for the PDF.',
+                points: 'No key points found in the PDF.',
+                qa: 'No questions and answers found in the PDF.',
+                pdppt: 'No presentation generated from the PDF.',
+                merge: 'Please select exactly two PDFs to merge.'
+            };
+        
+            if (feature === 'merge') {
+                if (files.length !== 2) {
+                    displayFlashMessage(errorMessages[feature], 'error');
+                    event.target.value = '';  // Reset the input field
+                    return;
+                }
+                  // Check if the files are PDFs and append them to the FormData
+                Array.from(files).forEach((file, index) => {
+                if (file.type !== 'application/pdf') {
+                    displayFlashMessage('All files must be PDFs for merging.', 'error');
+                    return;
+                }
+                const fileKey = index === 0 ? 'pdf1' : 'pdf2'; // 'pdf1' for the first file, 'pdf2' for the second
+                formData.append(fileKey, file);
+            });
+                apiRoute = '/merge';
+                fileExtension = 'merged.pdf';
+            } else {
+                const file = files[0];
+                if (!file) {
+                    //displayFlashMessage('No file selected! Please choose a file.', 'info');
+                    alert("no file selected");
+                    return;
+                }
+                formData.append("file", file);
+        
+                if (feature === 'text') {
+                    apiRoute = '/process-pdf';
+                    fileExtension = '.txt';
+                } else if (feature === 'tables') {
+                    apiRoute = '/process-tables';
+                    fileExtension = '.xlsx';
+                } else if (feature === 'summarize') {
+                    apiRoute = '/summarize';
+                    fileExtension = '_summary.txt';
+                } else if (feature === 'images') {
+                    apiRoute = '/extract-images';
+                    fileExtension = '_images.zip';
+                } else if (feature === 'points') {
+                    apiRoute = '/extract-points';
+                    fileExtension = '_important_points.txt';
+                } else if (feature === 'qa') {
+                    apiRoute = '/extract-q&a';
+                    fileExtension = '_question_and_answers.txt';
+                } else if (feature === 'pdppt') {
+                    apiRoute = '/upload-pdf';
+                    fileExtension = '_extracted_presentation.ppt';
+                }
+            }
+        
+            toggleLoading(true);
+        
+            try {
+                const response = await fetch(apiRoute, {
+                    method: "POST",
+                    body: formData
+                });
+        
+                toggleLoading(false);
+        
+                if (!response.ok) {
+                    displayFlashMessage(errorMessages[feature] || 'An error occurred during processing.', 'error');
+                    return;
+                }
+        
+                const blob = await response.blob();
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+        
+                const downloadName = feature === 'merge' 
+                    ? fileExtension 
+                    : files[0].name.split('.')[0] + fileExtension;
+        
+                link.download = downloadName;
+                link.click();
+            } catch (error) {
+                toggleLoading(false);
+                console.error("Error:", error);
+                displayFlashMessage('An error occurred while processing the file.', 'error');
+            } finally {
+                fileInput.value = ''; // Reset the file input after processing
+            }
+        }
+    </script>
+
+    
+</body>
+</html>
