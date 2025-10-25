@@ -146,41 +146,116 @@ def chunk_text_by_tokens(text, max_tokens=16000):
     return chunks
 
 
-
 def extract_important_points(text, num_points=5):
     """
-    Extracts important points from summarized text and saves them to a file.
+    Fast, deterministic extraction of important points without calling large ML models.
+    - Splits text into sentences using a lightweight regex.
+    - Scores sentences by keyword-frequency (Counter) and position.
+    - Returns path to a saved text file with up to `num_points` human-friendly bullets.
     """
     try:
-        if not text.strip():
+        import os, re
+        from collections import Counter
+
+        # Basic validation & cleaning
+        if not text or not isinstance(text, str) or not text.strip():
             raise ValueError("Input text is empty.")
 
-        # Chunk the text into smaller parts for summarization
-        chunks = [text[i:i + 16000] for i in range(0, len(text), 16000)]
-        summaries = []
-        for chunk in chunks:
-            # Summarize each chunk, ensuring valid results
-            result = summarization_pipeline(chunk, max_length=512, min_length=50, do_sample=False)
-            if result and len(result) > 0 and "summary_text" in result[0]:
-                summaries.append(result[0]["summary_text"])
+        txt = re.sub(r'\s+', ' ', text).strip()
 
-        summarized_text = " ".join(summaries)
+        # Lightweight sentence splitter (works reasonably well for English)
+        sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', txt) if s.strip()]
 
-        # Extract points from the summarized text
-        points = summarized_text.split('. ')
-        important_points = [f"{i+1}. {point.strip()}." for i, point in enumerate(points) if point.strip()]
+        if not sentences:
+            raise ValueError("No sentences found in the input text.")
 
-        # Limit the points to the specified number
-        important_points = important_points[:num_points]
+        # Build keyword frequencies (words of length >=4)
+        words = re.findall(r'\b[a-zA-Z]{4,}\b', txt.lower())
+        if not words:
+            # fallback: use whole sentences if no words found
+            selection = sentences[:num_points]
+            out = [f"• {s}" for s in selection]
+            os.makedirs("outputs", exist_ok=True)
+            out_path = os.path.join("outputs", "important_points.txt")
+            with open(out_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(out))
+            return out_path
 
-        # Save the points to a file
-        output_path = os.path.join(OUTPUT_DIR, "important_points.txt")
-        with open(output_path, "w", encoding="utf-8") as file:
-            file.write("\n".join(important_points))
+        freq = Counter(words)
+        top_keywords = set([w for w, _ in freq.most_common(40)])  # top tokens to consider
 
-        return output_path
+        # Score each sentence:
+        #  - keyword score = sum of keyword frequencies that appear in the sentence
+        #  - position bonus: earlier sentences get a small bonus
+        scored = []
+        for idx, s in enumerate(sentences):
+            s_words = re.findall(r'\b[a-zA-Z]{4,}\b', s.lower())
+            kw_score = sum(freq[w] for w in s_words if w in top_keywords)
+            pos_bonus = max(0, (len(sentences) - idx) / len(sentences)) * 0.2  # earlier sentences slightly favored
+            length_penalty = 0
+            if len(s) < 40:   # too short -> small penalty
+                length_penalty = 0.5
+            if len(s) > 300:  # too long -> small penalty
+                length_penalty += 0.3
+            total_score = kw_score + pos_bonus - length_penalty
+            scored.append((total_score, idx, s))
+
+        # Sort by score (highest first), but keep original order for ties
+        scored.sort(reverse=True, key=lambda x: (x[0], -x[1]))
+
+        # Select candidate sentences, then re-order them by their original position for readability
+        selected = []
+        for score, idx, s in scored:
+            # skip sentences that are obviously non-informative
+            if len(re.sub(r'[^A-Za-z0-9]', '', s)) < 10:
+                continue
+            selected.append((idx, s))
+            if len(selected) >= num_points * 3:  # gather a small pool then pick top-n by position
+                break
+
+        if not selected:
+            # fallback to first N sentences
+            selected = [(i, s) for i, s in enumerate(sentences[:num_points])]
+
+        # Order by original position and pick up to num_points
+        selected.sort(key=lambda x: x[0])
+        final = [s for _, s in selected][:num_points]
+
+        # Make points slightly more natural: ensure capitalization, end with period
+        def tidy(sent):
+            s = sent.strip()
+            if not s:
+                return ""
+            s = s[0].upper() + s[1:]
+            if s[-1] not in '.!?':
+                s = s.rstrip() + '.'
+            return s
+
+        bullets = [f"• {tidy(s)}" for s in final if tidy(s)]
+
+        # If we still have fewer than requested, pad with next best sentences
+        if len(bullets) < num_points:
+            remaining = [s for _, _, s in scored if s not in final]
+            for s in remaining:
+                if len(bullets) >= num_points:
+                    break
+                t = tidy(s)
+                if t:
+                    bullets.append(f"• {t}")
+
+        bullets = bullets[:num_points]
+
+        # Save to outputs/important_points.txt
+        os.makedirs("outputs", exist_ok=True)
+        out_path = os.path.join("outputs", "important_points.txt")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(bullets))
+
+        return out_path
+
     except Exception as e:
         raise Exception(f"Error extracting important points: {e}")
+
 
 
 def extract_images_from_pdf(pdf_path, output_dir):
@@ -209,32 +284,32 @@ def extract_images_from_pdf(pdf_path, output_dir):
         return zip_filename  # Return the path to the ZIP file
     except Exception as e:
         raise e
-
-
 def generate_pdf_presentation(pdf_path, output_dir='outputs'):
     """
-    Converts a PDF into a creative PowerPoint presentation with elegant slide designs,
-    balanced text-image layout, and readable formatting.
+    Converts a PDF into a natural-looking PowerPoint presentation with
+    light backgrounds, keyword-based slide titles, and clean formatting.
     """
     try:
         import os
-        import fitz
+        import fitz  # PyMuPDF
         import pdfplumber
         from pptx import Presentation
         from pptx.util import Inches, Pt
         from pptx.dml.color import RGBColor
         from pptx.enum.text import PP_ALIGN
+        from collections import Counter
         from random import choice
+        import re
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # 🎨 Creative slide background colors
+        # 🌿 Light, pastel color palette
         color_palette = [
-            RGBColor(33, 150, 243),  # Blue
-            RGBColor(255, 193, 7),   # Amber
-            RGBColor(156, 39, 176),  # Purple
-            RGBColor(0, 150, 136),   # Teal
-            RGBColor(244, 67, 54)    # Red
+            RGBColor(224, 242, 241),  # Light Teal
+            RGBColor(255, 249, 196),  # Light Yellow
+            RGBColor(227, 242, 253),  # Light Blue
+            RGBColor(248, 187, 208),  # Light Pink
+            RGBColor(232, 245, 233),  # Light Green
         ]
 
         # Utility: clean text
@@ -242,14 +317,14 @@ def generate_pdf_presentation(pdf_path, output_dir='outputs'):
             text = text.replace('\n', ' ').replace('\t', ' ')
             return ' '.join(text.split()).strip()
 
-        # 📝 Extract text from PDF
+        # Extract text from PDF
         text_per_page = []
         with pdfplumber.open(pdf_path) as pdf:
             for page in pdf.pages:
                 page_text = clean_text(page.extract_text() or "")
                 text_per_page.append(page_text)
 
-        # 🖼️ Extract images per page
+        # Extract images per page
         pdf_document = fitz.open(pdf_path)
         image_paths_per_page = []
         for i, page in enumerate(pdf_document):
@@ -264,126 +339,176 @@ def generate_pdf_presentation(pdf_path, output_dir='outputs'):
                 page_images.append(image_filename)
             image_paths_per_page.append(page_images)
 
-        # 🖋️ Create PowerPoint
+        # Helper: extract a one-word heading (main keyword)
+        def extract_heading(text):
+            words = re.findall(r'\b[A-Z][a-zA-Z]+\b', text)  # capitalized words
+            if not words:
+                words = re.findall(r'\b[a-zA-Z]{5,}\b', text)  # fallback to long words
+            common = Counter(words).most_common(1)
+            return common[0][0].capitalize() if common else "Overview"
+
+        # Create PowerPoint
         prs = Presentation()
 
-        # 🌟 Title Slide
+        # Title Slide
         slide_layout = prs.slide_layouts[0]
         slide = prs.slides.add_slide(slide_layout)
-        slide.shapes.title.text = "✨ PDF to Creative Presentation ✨"
-        slide.placeholders[1].text = "Auto-generated with AI design"
+        slide.shapes.title.text = "PDF Presentation"
+        slide.placeholders[1].text = "Auto-generated PowerPoint"
         slide.background.fill.solid()
-        slide.background.fill.fore_color.rgb = choice(color_palette)
+        slide.background.fill.fore_color.rgb = RGBColor(227, 242, 253)  # very light blue
 
-        # 🧠 Add page-wise creative slides
+        # Add slides for each PDF page
         for i, page_text in enumerate(text_per_page, start=1):
             slide_layout = prs.slide_layouts[6]  # Blank layout
             slide = prs.slides.add_slide(slide_layout)
 
-            # 🎨 Random background color for each slide
             bg_color = choice(color_palette)
             slide.background.fill.solid()
             slide.background.fill.fore_color.rgb = bg_color
 
-            # 🏷️ Add a creative page title
-            textbox = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(1))
-            text_frame = textbox.text_frame
-            text_frame.text = f"📄 Page {i}"
-            text_frame.paragraphs[0].font.bold = True
-            text_frame.paragraphs[0].font.size = Pt(32)
-            text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
-            text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+            # Heading (keyword)
+            heading = extract_heading(page_text)
 
-            # 🧾 Add text content if available
+            # Title box
+            title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(9), Inches(1))
+            title_frame = title_box.text_frame
+            title_frame.text = heading
+            title_frame.paragraphs[0].font.bold = True
+            title_frame.paragraphs[0].font.size = Pt(32)
+            title_frame.paragraphs[0].font.color.rgb = RGBColor(33, 33, 33)
+            title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+
+            # Text content
             if page_text.strip():
-                text_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.5), Inches(8), Inches(3))
+                text_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.6), Inches(8.5), Inches(3.5))
                 tf = text_box.text_frame
                 tf.word_wrap = True
                 tf.text = page_text[:1000] + ("..." if len(page_text) > 1000 else "")
                 for paragraph in tf.paragraphs:
                     for run in paragraph.runs:
                         run.font.size = Pt(16)
-                        run.font.color.rgb = RGBColor(255, 255, 255)
+                        run.font.color.rgb = RGBColor(60, 60, 60)
 
-            # 🖼️ Add an image if available
+            # Add image (if available)
             if image_paths_per_page[i-1]:
-                img_path = image_paths_per_page[i-1][0]  # Take first image of the page
-                slide.shapes.add_picture(img_path, Inches(1.5), Inches(4.5), width=Inches(7), height=Inches(3))
+                img_path = image_paths_per_page[i-1][0]
+                slide.shapes.add_picture(img_path, Inches(1.5), Inches(5), width=Inches(7), height=Inches(3))
 
-        # 🎯 Outro Slide
+        # Outro Slide
         outro_layout = prs.slide_layouts[6]
         outro_slide = prs.slides.add_slide(outro_layout)
         outro_slide.background.fill.solid()
-        outro_slide.background.fill.fore_color.rgb = choice(color_palette)
+        outro_slide.background.fill.fore_color.rgb = RGBColor(232, 245, 233)
         box = outro_slide.shapes.add_textbox(Inches(1), Inches(2), Inches(8), Inches(3))
         tf = box.text_frame
-        tf.text = "🎉 Presentation Generated Successfully!\n\nThank you for using AI-powered creativity!"
+        tf.text = "Presentation Generated Successfully!"
         tf.paragraphs[0].alignment = PP_ALIGN.CENTER
         for p in tf.paragraphs:
             for run in p.runs:
                 run.font.size = Pt(28)
-                run.font.color.rgb = RGBColor(255, 255, 255)
+                run.font.color.rgb = RGBColor(33, 33, 33)
 
-        # 💾 Save the final creative presentation
+        # Save final PPT
         output_pptx = os.path.join(output_dir, "creative_pdf_presentation.pptx")
         prs.save(output_pptx)
         return output_pptx
 
     except Exception as e:
-        raise Exception(f"Error generating creative presentation: {e}")
+        raise Exception(f"Error generating presentation: {e}")
+
+
+
 
 
 # Function to extract Q&A from PDF
-def extract_qa_from_pdf(pdf_path, model_name="deepset/roberta-base-squad2"):
+def extract_qa_from_pdf(pdf_path, max_qas=10):
+    """
+    Extracts natural and creative Q&A pairs from a PDF file quickly.
+    Uses sentence structure and keywords to generate human-like questions.
+    """
     try:
+        import os, re, pdfplumber
+        from collections import Counter
+
         # Step 1: Extract text from PDF
-        def extract_text(pdf_path):
-            text = ""
-            with pdfplumber.open(pdf_path) as pdf:
-                for page in pdf.pages:
-                    text += page.extract_text() or ""
-            return text
+        text = ""
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                text += page_text + " "
 
-        # Step 2: Chunk the text into manageable sizes
-        def chunk_text(text, max_tokens=512):
-            words = text.split()
-            return [" ".join(words[i:i + max_tokens]) for i in range(0, len(words), max_tokens)]
+        text = re.sub(r'\s+', ' ', text.strip())
+        if not text:
+            raise ValueError("No text found in the PDF.")
 
-        # Extract the text and chunk it
-        text = extract_text(pdf_path)
-        text_chunks = chunk_text(text)
+        # Step 2: Split into sentences
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 30]
+        if not sentences:
+            raise ValueError("Not enough sentences to generate Q&A.")
 
-        # Step 3: Load the pre-trained QA model
-        qa_pipeline = pipeline("question-answering", model=model_name, tokenizer=model_name)
+        # Step 3: Find keywords for creativity
+        words = re.findall(r'\b[A-Za-z]{4,}\b', text.lower())
+        common_words = {w for w, _ in Counter(words).most_common(60)}
 
-        # Step 4: Define sample questions
-        questions = [
-            "What is the main topic?",
-            "What are the key points?",
-            "What details are discussed?",
-            "What is the conclusion?",
-        ]
+        def generate_question(sentence):
+            s = sentence.strip()
+            s_lower = s.lower()
+
+            # Creative question generation
+            if "because" in s_lower or "due to" in s_lower:
+                return "Why does this happen?"
+            elif "use" in s_lower or "used for" in s_lower:
+                return "What is it used for?"
+            elif "example" in s_lower:
+                return "Can you give an example?"
+            elif "important" in s_lower or "significant" in s_lower:
+                return "Why is this important?"
+            elif "result" in s_lower or "cause" in s_lower:
+                return "What is the result or cause?"
+            else:
+                # Pick a main keyword
+                keywords = [w for w in re.findall(r'\b[A-Za-z]{4,}\b', s) if w.lower() in common_words]
+                if keywords:
+                    key = keywords[0].capitalize()
+                    return f"What is {key}?"
+                else:
+                    return "What does this mean?"
+
+        # Step 4: Select meaningful sentences
+        selected_sentences = []
+        seen = set()
+        for s in sentences:
+            if len(selected_sentences) >= max_qas:
+                break
+            main = s.split(" ")[0:8]
+            if " ".join(main) not in seen:
+                selected_sentences.append(s)
+                seen.add(" ".join(main))
 
         # Step 5: Generate Q&A pairs
         qa_pairs = []
-        for chunk in text_chunks:
-            for question in questions:
-                try:
-                    result = qa_pipeline(question=question, context=chunk)
-                    qa_pairs.append((question, result.get('answer', 'No answer found')))
-                except Exception as e:
-                    print(f"Error processing chunk: {e}")
+        for s in selected_sentences:
+            q = generate_question(s)
+            a = s
+            qa_pairs.append((q, a))
 
-        # Step 6: Save Q&A pairs to a text file
-        output_file = "qa_output.txt"
-        with open(output_file, "w", encoding="utf-8") as file:
-            for i, (question, answer) in enumerate(qa_pairs, 1):
-                file.write(f"{i}. Question: {question}\nAnswer: {answer}\n\n")
+        # Step 6: Save output
+        os.makedirs("outputs", exist_ok=True)
+        output_file = os.path.join("outputs", "qa_output.txt")
 
+        with open(output_file, "w", encoding="utf-8") as f:
+            for i, (q, a) in enumerate(qa_pairs, 1):
+                f.write(f"{i}. Q: {q}\nA: {a}\n\n")
+
+        print(f"✅ Q&A extracted successfully: {output_file}")
         return output_file
+
     except Exception as e:
-        print(f"Error extracting Q&A: {e}")
-        return None
+        raise Exception(f"Error extracting Q&A: {e}")
+
+
 
 
 def merge_pdfs_with_features(pdf1, pdf2, order):

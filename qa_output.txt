@@ -1,36 +1,12 @@
 1. Question: What is the main topic?
-Answer: A measure of the amount of carbon dioxide released into the atmosphere
+Answer: artificial intelligence
 
 2. Question: What are the key points?
-Answer: A measure of the amount of carbon dioxide released into the atmosphere
+Answer: 1. Simple and Easy to Learn:
 
 3. Question: What details are discussed?
-Answer: A measure of the amount of carbon dioxide released into the atmosphere
+Answer: 1. Simple and Easy to Learn:
 
 4. Question: What is the conclusion?
-Answer: A measure of the amount of carbon dioxide released into the atmosphere
-
-5. Question: What is the main topic?
-Answer: promoting sustainable development
-
-6. Question: What are the key points?
-Answer: individual's behavior, age, gender, and economic status
-
-7. Question: What details are discussed?
-Answer: long-term shifts in weather patterns and average temperatures
-
-8. Question: What is the conclusion?
-Answer: long-term shifts in weather patterns and average temperatures
-
-9. Question: What is the main topic?
-Answer: Rising sea levels
-
-10. Question: What are the key points?
-Answer: Rising sea levels
-
-11. Question: What details are discussed?
-Answer: extreme weather events
-
-12. Question: What is the conclusion?
-Answer: negative consequences for people, wildlife, and the planet as a whole
+Answer: simplicity and readability
 

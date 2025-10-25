@@ -1,0 +1,30 @@
+1. Q: What is Python?
+A: PYTHON Python is a high-level, interpreted, and versatile programming language known for its simplicity and readability.
+
+2. Q: What is it used for?
+A: It was created by Guido van Rossum in 1991 and is widely used in web development, data analysis, artificial intelligence, machine learning, automation, and more.
+
+3. Q: What is Easy?
+A: Simple and Easy to Learn: Its syntax is clean and mirrors natural language, making it beginner-friendly.
+
+4. Q: What is Interpreted?
+A: Interpreted Language: Python executes code line by line, allowing for easy debugging and interactive coding.
+
+5. Q: What is Cross?
+A: Cross-Platform: It works seamlessly on various operating systems like Windows, macOS, and Linux.
+
+6. Q: What is Extensive?
+A: Extensive Libraries: Python has a rich set of libraries like NumPy, Pandas, TensorFlow, etc., for various tasks.
+
+7. Q: What is Dynamic?
+A: Dynamic Typing: You don’t need to declare variable types explicitly.
+
+8. Q: What is Community?
+A: Community Support: Python has a vast and active community, ensuring quick help and robust resources.
+
+9. Q: What is Development?
+A: Web Development: Frameworks like Django and Flask.
+
+10. Q: What is Data?
+A: Data Science: Libraries like Pandas and Matplotlib.
+
