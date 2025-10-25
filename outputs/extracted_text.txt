@@ -1,5 +1,29 @@
-Ajnkjdvnfgbnktylhmlbjnb Fbvnjghkm Hndfvhbykmil Sderyuhumjjng, Ucbvbbj,olo Bnvb hhyn apple orange htyjjhm bnhj baana fbgnmju
 
-1.what is python? Ans: pyhton is a high level language ,easy,robust.
+PYTHON Python is a high-level, interpreted, and versatile programming language known for its simplicity and readability. It was created by Guido van Rossum in 1991 and is widely used in web development, data analysis, artificial intelligence, machine learning, automation, and more. Key Features of Python:
 
-2. what is your name? Ans: Abhishek
+
+1. Simple and Easy to Learn: Its syntax is clean and mirrors natural language, making it beginner-friendly.
+
+2. Interpreted Language: Python executes code line by line, allowing for easy debugging and interactive coding.
+
+3. Cross-Platform: It works seamlessly on various operating systems like Windows, macOS, and Linux.
+
+4. Extensive Libraries: Python has a rich set of libraries like NumPy, Pandas, TensorFlow, etc., for various tasks.
+
+5. Dynamic Typing: You don’t need to declare variable types explicitly.
+
+
+6. Community Support: Python has a vast and active community, ensuring quick help and robust resources. Applications of Python:
+
+
+1. Web Development: Frameworks like Django and Flask.
+
+2. Data Science: Libraries like Pandas and Matplotlib.
+
+3. Machine Learning and AI: Using TensorFlow, Keras, etc.
+
+4. Game Development: Libraries like Pygame.
+
+5. Automation: Scripting repetitive tasks.
+
+6. IoT Projects: Working with microcontrollers using MicroPython.Criteria List Tuple Set Mutabilit Mutable: Immutabl Mutable: y Elements e: Elements can be Elements can be modified cannot be modified after modified after creation after creation creation Order Ordered: Ordered: Unordere Elements Elements d: have a have a Elements specific specific have no order order specific order Duplicate Duplicate Duplicates Duplicate s s allowed allowed s not allowed Indexing Access Access No elements elements indexing by index by indexPython offers numerous advantages that make it a highly preferred programming language. Its simplicity and readability, along with an intuitive syntax, make it easy to learn and use, even for beginners. Python supports multiple programming paradigms, including object- oriented, procedural, and functional programming, making it versatile for various applications such as web development, data analysis, artificial intelligence, and automation. Its extensive standard library and third-party libraries simplify complex tasks, eliminating the need to write code from scratch. Being cross-platform, Python ensures that code written on one operating system can run seamlessly on another. The dynamic typing feature allows developers to write flexible and concise code without specifying variable types. Furthermore, Python integrates well with other programming languages like C, Java, and .NET, and its strong community support ensures access to comprehensive documentation, tutorials, and quickproblem resolution. These features, combined with Python’s suitability for rapid prototyping and automation, make it a powerful and efficient tool for developers worldwide.

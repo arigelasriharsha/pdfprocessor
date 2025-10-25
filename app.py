@@ -29,18 +29,18 @@ OUTPUT_DIR = 'outputs'
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 
-# Initialize Models
+model_name = "allenai/led-large-16384-arxiv"
 print("Loading models...")
 
-# Replace with the path to your local model folder
-model_path = r"C:\Users\shush\Downloads\fpextracted\models\led-large-16384-arxiv"
+# Load model and tokenizer directly from Hugging Face
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
-tokenizer = AutoTokenizer.from_pretrained(model_path)
+# Example summarization pipeline (optional)
+summarization_pipeline = pipeline("summarization", model=model, tokenizer=tokenizer)
 
-summarization_pipeline = pipeline("summarization", model="facebook/bart-large-cnn")
 
 # Utility Functions
 def preprocess_text(text):
@@ -211,99 +211,127 @@ def extract_images_from_pdf(pdf_path, output_dir):
         raise e
 
 
-
 def generate_pdf_presentation(pdf_path, output_dir='outputs'):
+    """
+    Converts a PDF into a creative PowerPoint presentation with elegant slide designs,
+    balanced text-image layout, and readable formatting.
+    """
     try:
-        # Initialize directories
+        import os
+        import fitz
+        import pdfplumber
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from pptx.dml.color import RGBColor
+        from pptx.enum.text import PP_ALIGN
+        from random import choice
+
         os.makedirs(output_dir, exist_ok=True)
 
-        # Preprocess and clean the text
-        def preprocess_text(text):
-            text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Remove non-ASCII characters
-            text = re.sub(r'\s+', ' ', text)  # Remove extra spaces
-            return text.strip()
+        # 🎨 Creative slide background colors
+        color_palette = [
+            RGBColor(33, 150, 243),  # Blue
+            RGBColor(255, 193, 7),   # Amber
+            RGBColor(156, 39, 176),  # Purple
+            RGBColor(0, 150, 136),   # Teal
+            RGBColor(244, 67, 54)    # Red
+        ]
 
-        # Extract text from PDF
-        def extract_text_from_pdf(pdf_path):
-            text = ""
-            try:
-                with pdfplumber.open(pdf_path) as pdf:
-                    for page in pdf.pages:
-                        page_text = page.extract_text() or ""
-                        text += page_text
-                return preprocess_text(text)
-            except Exception as e:
-                raise e
+        # Utility: clean text
+        def clean_text(text):
+            text = text.replace('\n', ' ').replace('\t', ' ')
+            return ' '.join(text.split()).strip()
 
-        # Extract images from PDF
-        def extract_images_from_pdf(pdf_path, output_dir):
-            try:
-                pdf_document = fitz.open(pdf_path)
-                image_paths = []
-                for i in range(len(pdf_document)):
-                    page = pdf_document[i]
-                    for img_index, img in enumerate(page.get_images(full=True)):
-                        xref = img[0]
-                        base_image = pdf_document.extract_image(xref)
-                        image_bytes = base_image["image"]
-                        image_filename = os.path.join(output_dir, f"page_{i+1}_img_{img_index+1}.png")
-                        with open(image_filename, "wb") as img_file:
-                            img_file.write(image_bytes)
-                        image_paths.append(image_filename)
-                return image_paths
-            except Exception as e:
-                raise e
+        # 📝 Extract text from PDF
+        text_per_page = []
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                page_text = clean_text(page.extract_text() or "")
+                text_per_page.append(page_text)
 
-        # Extract text and images
-        text = extract_text_from_pdf(pdf_path)
-        images = extract_images_from_pdf(pdf_path, output_dir)
+        # 🖼️ Extract images per page
+        pdf_document = fitz.open(pdf_path)
+        image_paths_per_page = []
+        for i, page in enumerate(pdf_document):
+            page_images = []
+            for img_index, img in enumerate(page.get_images(full=True)):
+                xref = img[0]
+                base_image = pdf_document.extract_image(xref)
+                image_bytes = base_image["image"]
+                image_filename = os.path.join(output_dir, f"page_{i+1}_img_{img_index+1}.png")
+                with open(image_filename, "wb") as img_file:
+                    img_file.write(image_bytes)
+                page_images.append(image_filename)
+            image_paths_per_page.append(page_images)
 
-        # Create PowerPoint Presentation
+        # 🖋️ Create PowerPoint
         prs = Presentation()
 
-        # Add title slide
-        slide_layout = prs.slide_layouts[0]  # Title slide
+        # 🌟 Title Slide
+        slide_layout = prs.slide_layouts[0]
         slide = prs.slides.add_slide(slide_layout)
-        title = slide.shapes.title
-        subtitle = slide.placeholders[1]
-        title.text = "PDF to Presentation"
-        subtitle.text = "Generated from your PDF"
+        slide.shapes.title.text = "✨ PDF to Creative Presentation ✨"
+        slide.placeholders[1].text = "Auto-generated with AI design"
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = choice(color_palette)
 
-        # Only add text slide if there is text content
-        if text:
-            # Add slides for text content
-            text_limit = 2000  # Limit of characters per slide
-            slide_layout = prs.slide_layouts[1]  # Title and Content layout
-            
-            # Split long text into multiple slides if necessary
-            start_index = 0
-            while start_index < len(text):
-                slide = prs.slides.add_slide(slide_layout)
-                title = slide.shapes.title
-                content = slide.shapes.placeholders[1]
-                title.text = "Text Content"
-                content.text = text[start_index:start_index + text_limit]
-                  # Set font size to 12 for the text content
-                for paragraph in content.text_frame.paragraphs:
+        # 🧠 Add page-wise creative slides
+        for i, page_text in enumerate(text_per_page, start=1):
+            slide_layout = prs.slide_layouts[6]  # Blank layout
+            slide = prs.slides.add_slide(slide_layout)
+
+            # 🎨 Random background color for each slide
+            bg_color = choice(color_palette)
+            slide.background.fill.solid()
+            slide.background.fill.fore_color.rgb = bg_color
+
+            # 🏷️ Add a creative page title
+            textbox = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(1))
+            text_frame = textbox.text_frame
+            text_frame.text = f"📄 Page {i}"
+            text_frame.paragraphs[0].font.bold = True
+            text_frame.paragraphs[0].font.size = Pt(32)
+            text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+            text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+
+            # 🧾 Add text content if available
+            if page_text.strip():
+                text_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.5), Inches(8), Inches(3))
+                tf = text_box.text_frame
+                tf.word_wrap = True
+                tf.text = page_text[:1000] + ("..." if len(page_text) > 1000 else "")
+                for paragraph in tf.paragraphs:
                     for run in paragraph.runs:
-                        run.font.size = Pt(12)
-                start_index += text_limit
+                        run.font.size = Pt(16)
+                        run.font.color.rgb = RGBColor(255, 255, 255)
 
-        # Add slides for images only if there are images
-        if images:
-            for img_path in images:
-                slide_layout = prs.slide_layouts[5]  # Blank slide layout
-                slide = prs.slides.add_slide(slide_layout)
-                slide.shapes.add_picture(img_path, Inches(1), Inches(1), width=Inches(8.5), height=Inches(6))
+            # 🖼️ Add an image if available
+            if image_paths_per_page[i-1]:
+                img_path = image_paths_per_page[i-1][0]  # Take first image of the page
+                slide.shapes.add_picture(img_path, Inches(1.5), Inches(4.5), width=Inches(7), height=Inches(3))
 
-        # Save the presentation
-        output_pptx = os.path.join(output_dir, "pdf_presentation.pptx")
+        # 🎯 Outro Slide
+        outro_layout = prs.slide_layouts[6]
+        outro_slide = prs.slides.add_slide(outro_layout)
+        outro_slide.background.fill.solid()
+        outro_slide.background.fill.fore_color.rgb = choice(color_palette)
+        box = outro_slide.shapes.add_textbox(Inches(1), Inches(2), Inches(8), Inches(3))
+        tf = box.text_frame
+        tf.text = "🎉 Presentation Generated Successfully!\n\nThank you for using AI-powered creativity!"
+        tf.paragraphs[0].alignment = PP_ALIGN.CENTER
+        for p in tf.paragraphs:
+            for run in p.runs:
+                run.font.size = Pt(28)
+                run.font.color.rgb = RGBColor(255, 255, 255)
+
+        # 💾 Save the final creative presentation
+        output_pptx = os.path.join(output_dir, "creative_pdf_presentation.pptx")
         prs.save(output_pptx)
-        
         return output_pptx
 
     except Exception as e:
-        raise e
+        raise Exception(f"Error generating creative presentation: {e}")
+
 
 # Function to extract Q&A from PDF
 def extract_qa_from_pdf(pdf_path, model_name="deepset/roberta-base-squad2"):
