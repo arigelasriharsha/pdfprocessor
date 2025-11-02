@@ -22,6 +22,12 @@ app = Flask(__name__)
 CORS(app)
 #nltk.data.path.append('C:/Users/allad/AppData/Local/Programs/Python/Python310/nltk_data')
 #nltk.download('punkt_tab')
+from flask import send_from_directory
+
+@app.route('/outputs/<path:filename>')
+def serve_output_file(filename):
+    return send_from_directory('outputs', filename)
+
 
 # Initialize directories
 UPLOAD_DIR = 'uploads'
@@ -636,40 +642,68 @@ def process_tables():
 @app.route('/summarize', methods=['POST'])
 def summarize_pdf():
     try:
+        import pdfplumber, re
+        from transformers import pipeline
+
         # Get the uploaded file
         file = request.files.get('file')
         if not file:
             return jsonify({"error": "No file provided"}), 400
 
-        # Save the file in the UPLOAD_DIR
+        # Save the file temporarily
         pdf_path = os.path.join(UPLOAD_DIR, file.filename)
         file.save(pdf_path)
 
-        # Extract text from the uploaded PDF
-        text = extract_text_from_pdf(pdf_path)
-        text = preprocess_text(text)
+        # ---- STEP 1: Fast text extraction ----
+        text = ""
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                txt = page.extract_text()
+                if txt:
+                    text += txt + " "
 
-        # Chunk the text and summarize
-        text_chunks = chunk_text_by_tokens(text)
+        # ---- STEP 2: Clean the text ----
+        text = re.sub(r'\s+', ' ', text).strip()
+        if not text:
+            return jsonify({"error": "No text could be extracted from this PDF."}), 400
+
+        # ---- STEP 3: Fast summarization model ----
+        # (t5-small is MUCH faster than bart-large-cnn)
+        summarizer = pipeline(
+            "summarization",
+            model="t5-small",  # lightweight model
+            tokenizer="t5-small",
+            framework="pt",
+            device=-1  # use CPU; use 0 if you have GPU
+        )
+
+        # ---- STEP 4: Chunk large text efficiently ----
+        max_chunk = 800
+        chunks = [text[i:i + max_chunk] for i in range(0, len(text), max_chunk)]
+
         summaries = []
-        for chunk in text_chunks:
-            input_ids = tokenizer(chunk, return_tensors="pt", truncation=True).input_ids
-            summary_ids = model.generate(input_ids, max_length=512, min_length=50, no_repeat_ngram_size=3)
-            summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+        for chunk in chunks:
+            summary = summarizer(
+                chunk,
+                max_length=120,
+                min_length=30,
+                do_sample=False
+            )[0]['summary_text']
             summaries.append(summary)
 
         summary_text = " ".join(summaries)
 
-        # Save the summary to a file in the UPLOAD_DIR
+        # ---- STEP 5: Save and return the summary ----
         summary_file_path = os.path.join(UPLOAD_DIR, "summary.txt")
-        with open(summary_file_path, "w", encoding="utf-8") as summary_file:
-            summary_file.write(summary_text)
+        with open(summary_file_path, "w", encoding="utf-8") as f:
+            f.write(summary_text)
 
-        # Automatically download the file
         return send_file(summary_file_path, as_attachment=True, download_name="summary.txt")
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+
 
 
 @app.route('/extract-images', methods=['POST'])
